@@ -1,0 +1,216 @@
+clc;
+clear all;
+
+
+
+% graphical method
+
+
+c=[3 5];
+a=[1 2; 1 1; 0 1];
+b=[2000 ;1500 ;600];
+
+x1=0:max(b);
+x21=(b(1)-a(1,1).*x1)./a(1,2);
+x22=(b(2)-a(2,1).*x1)./a(2,2);
+x23=(b(3)-a(3,1).*x1)./a(3,2);
+
+x21=max(0,x21);
+x22=max(0,x22);
+x23=max(0,x23);
+
+cx1=find(x1==0);
+c1=find(x21==0);
+c2=find(x22==0);
+c3=find(x23==0);
+
+plot(x1,x21,'r',x1,x22,'b',x1,x23,'g');
+
+line1=[x1(:,[cx1 c1]);x21(:,[cx1 c1])]';
+line2=[x1(:,[cx1 c2]);x21(:,[cx1 c2])]';
+line3=[x1(:,[cx1 c3]);x21(:,[cx1 c3])]';
+
+pt=[0; 0];
+for i=1:size(a,1)-1
+    a1=a(i,:);
+    b1=b(i,:);
+    for j=i+1:size(a,1)
+        a2=a(j,:);
+        b2=b(j,:);
+        A=[a1;a2];
+        B=[b1;b2];
+        X=A\B;
+        pt=[pt X];
+    end
+end
+
+pt=pt';
+pt = [pt;line1;line2];
+points = unique(pt,'rows');
+
+X1=points(:,1);
+X2=points(:,2);
+constraint1=(X1+2*X2-2000);
+constraint2=(X1+X2-1500);
+constraint3=(X2-600);
+failind=[find(constraint1>0);find(constraint2>0);find(constraint3>0)];
+points(failind,:)=[];
+
+X1=points(:,1);
+X2=points(:,2);
+z=3*X1+5*X2;
+[ans,ansind]=max(z);
+result=[points(ansind,:) ans]
+
+
+% BFS
+
+c=[2 3 4 7];
+a=[2 3 -1 4; 1 -2 6 -7];
+b=[8;-3];
+
+n=size(a,2);
+m=size(a,1);
+
+nos=nchoosek(n,m);
+t=nchoosek(1:n,m);
+
+sol=[];
+
+for i=1:nos
+    y=zeros(n,1);
+    A=a(:,t(i,:));
+    X=A\b;
+    y(t(i,:))=X;
+    if X>0 & X~=inf
+        sol=[sol y];
+    end
+end
+
+z=c*sol;
+[res,resind]=max(z);
+bfs=sol(:,resind)';
+bfs=[bfs res];
+
+% Simplex
+
+NoofVariables=3;
+
+C=[3 2 5];
+a=[1 2 1;1 4 0;3 0 2];
+b=[430;460;420];
+i=eye(size(a,1));
+A=[a i b];
+cj=[C zeros(1,size(a,1)+1)];
+bv=[4 5 6];
+zjcj=cj(bv)*A-cj;
+
+run=true;
+while run
+    if any(zjcj<0)
+        zc=zjcj(:,1:end-1);
+        [pvt_val,pvt_col]=min(zc);
+        pvc=A(:,pvt_col);
+        sol=A(:,end);
+
+        for i=1:size(A,1)
+            if pvc(i)<0
+              sol(i)=inf;
+            else
+                sol(i)=sol(i)/pvc(i);
+            end
+
+
+        end
+        [pvt_rval,pvt_row]=min(sol);
+        pvt_key=A(pvt_row,pvt_col);
+        bv(pvt_row)=pvt_col;
+        A(pvt_row,:)=A(pvt_row,:)/pvt_key;
+        for i=1:size(A,1)
+            if i~=pvt_row
+                A(i,:)=A(i,:)-A(i,pvt_col)*A(pvt_row,:);
+            end
+        end
+        zjcj=zjcj-zjcj(pvt_col)*A(pvt_row,:);
+        
+    else
+        run=false;
+    end
+end
+
+disp(zjcj(end));
+%}
+
+% big m
+
+%{
+Variables={'x_1','x_2','s_2','s_3','A_1','A_2','Sol'};
+M=1000;
+Cost=[-2 -1 0 0 -M -M 0];
+A=[3 1 0 0 1 0 3; 4 3 -1 0 0 1 6; 1 2 0 1 0 0 3];
+s=eye(size(A,1));
+ 
+BV=[];
+for j=1:size(s,2)
+    for i=1:size(A,2)
+        if A(:,i)==s(:,j)
+            BV=[BV i];
+        end
+    end
+end
+
+
+
+B=A(:,BV);
+A=inv(B)*A;
+ZjCj=Cost(BV)*A-Cost;
+
+disp(ZjCj);
+
+ZCj=[ZjCj;A];
+SimpTable=array2table(ZCj);
+SimpTable.Properties.VariableNames(1:size(ZCj,2))=Variables
+
+RUN=true;
+while RUN
+ZC=ZjCj(:,1:end-1);
+if any(ZC<0)
+    fprintf('The Current BFS is NOT Optimal \n');
+    [Entval, pvt_col]=min(ZC);
+fprintf('Entering Column=%d \n',pvt_col);
+
+sol=A(:,end);
+Column=A(:,pvt_col);
+if all(Column)<=0
+    fprintf('Solution is UNBOUNDED')
+else
+    for i=1:size(Column,1)
+        if Column(i)>0
+            ratio(i)=sol(i)./Column(i);
+        else
+            ratio(i)=inf;
+        end
+    end
+    [minR,pvt_row]=min(ratio);
+    fprintf('Leaving Row= %d\n',pvt_row);
+BV(pvt_row)=pvt_col;
+B=A(:,BV);
+A=inv(B)*A;
+ZjCj=Cost(BV)*A-Cost;
+
+ZCj=[ZjCj;A];
+Table=array2table(ZCj);
+Table.Properties.VariableNames(1:size(ZCj,2))=Variables
+end
+else
+    RUN=false;
+    fprintf('=============CURRENT BFS IS OPTIMAL=============\n')
+end
+end
+FINAL_BFS=zeros(1,size(A,2));
+FINAL_BFS(BV)=A(:,end);
+FINAL_BFS(end)=sum(FINAL_BFS.*Cost);
+OptimalBFS=array2table(FINAL_BFS);
+OptimalBFS.Properties.VariableNames(1:size(OptimalBFS,2))=Variables
+
+%}
